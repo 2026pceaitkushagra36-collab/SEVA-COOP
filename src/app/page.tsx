@@ -1,234 +1,387 @@
+"use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 const services = [
   {
-    icon: "🔧",
-    title: "Home Repairs",
-    description:
-      "Connect with trusted local workers for everyday repairs.",
-  },
-  {
     icon: "⚡",
     title: "Electrical",
-    description:
-      "Find skilled electricians available in your area.",
+    description: "Reliable electrical repair and maintenance.",
   },
   {
-    icon: "🚰",
+    icon: "🔧",
     title: "Plumbing",
-    description:
-      "Get reliable plumbing help from nearby workers.",
+    description: "Quick plumbing support for homes and businesses.",
   },
   {
-    icon: "🪚",
-    title: "Carpentry",
-    description:
-      "Find local carpenters for furniture and home projects.",
+    icon: "🏠",
+    title: "Home Services",
+    description: "Trusted help for everyday household needs.",
+  },
+  {
+    icon: "🩺",
+    title: "Healthcare",
+    description: "Connect with local healthcare services.",
+  },
+  {
+    icon: "📚",
+    title: "Education",
+    description: "Access learning and educational support.",
+  },
+  {
+    icon: "🌱",
+    title: "Agriculture",
+    description: "Support for farmers and agricultural needs.",
   },
 ];
 
-const tools = [
+const stats = [
   {
-    icon: "🛠️",
-    name: "Power Drill",
-    category: "Power Tools",
-    status: "Available",
+    value: "24/7",
+    label: "Service Access",
   },
   {
-    icon: "🪜",
-    name: "Extension Ladder",
-    category: "Home Tools",
-    status: "Available",
+    value: "100%",
+    label: "Community Focused",
   },
   {
-    icon: "🔨",
-    name: "Hammer Set",
-    category: "Hand Tools",
-    status: "Available",
+    value: "1",
+    label: "Connected Platform",
   },
 ];
 
-export default function Home() {
+export default function HomePage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <main className="min-h-screen bg-[#f7f8f5] text-[#17211b]">
-      {/* NAVBAR */}
-      <nav className="sticky top-0 z-50 border-b border-[#e4e8e3] bg-[#f7f8f5]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#176b45] text-xl font-bold text-white">
-              S
+    <main className="min-h-screen overflow-hidden bg-[#050816] text-white">
+      {/* Background effects */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-violet-600/15 blur-[120px]" />
+        <div className="absolute right-[-120px] top-[20%] h-[450px] w-[450px] rounded-full bg-blue-600/10 blur-[130px]" />
+        <div className="absolute bottom-[-180px] left-[35%] h-[500px] w-[500px] rounded-full bg-indigo-600/10 blur-[140px]" />
+
+        <div
+          className="absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }}
+        />
+      </div>
+
+      {/* Navigation */}
+      <nav className="relative z-20 border-b border-white/[0.07] bg-[#050816]/70 backdrop-blur-xl">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/20 to-blue-500/10 shadow-lg shadow-violet-500/10">
+              <span className="text-xl">✦</span>
             </div>
 
             <div>
               <div className="text-lg font-bold tracking-tight">
-                SEVA-COOP
+                SEVA<span className="text-violet-400">-COOP</span>
               </div>
 
-              <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-gray-500">
-                Community Powered
+              <div className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/35">
+                Community Services
               </div>
             </div>
           </Link>
 
-          <div className="hidden items-center gap-8 text-sm font-medium md:flex">
-            <a
-              href="#services"
-              className="transition hover:text-[#176b45]"
+          {/* Desktop navigation */}
+          <div className="hidden items-center gap-2 md:flex">
+            <Link
+              href="/"
+              className="rounded-xl bg-white/[0.07] px-4 py-2.5 text-sm font-medium text-white"
+            >
+              Home
+            </Link>
+
+            <Link
+              href="/dashboard"
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-white/55 transition hover:bg-white/[0.05] hover:text-white"
+            >
+              Dashboard
+            </Link>
+
+            <Link
+              href="/customer"
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-white/55 transition hover:bg-white/[0.05] hover:text-white"
             >
               Services
-            </a>
+            </Link>
 
-            <a
-              href="#tools"
-              className="transition hover:text-[#176b45]"
+            <Link
+              href="/login"
+              className="ml-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 hover:from-violet-400 hover:to-indigo-400"
             >
-              Tool Library
-            </a>
-
-            <a
-              href="#how-it-works"
-              className="transition hover:text-[#176b45]"
-            >
-              How It Works
-            </a>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="hidden px-4 py-2 text-sm font-semibold md:block">
               Sign In
-            </button>
-
-            <button className="rounded-xl bg-[#176b45] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#125638]">
-              Get Started
-            </button>
+            </Link>
           </div>
+
+          {/* Mobile menu button */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-white md:hidden"
+          >
+            {menuOpen ? "×" : "☰"}
+          </button>
         </div>
+
+        {/* Mobile navigation */}
+        {menuOpen && (
+          <div className="border-t border-white/[0.07] px-5 py-4 md:hidden">
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl bg-white/[0.07] px-4 py-3 text-sm text-white"
+              >
+                Home
+              </Link>
+
+              <Link
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm text-white/60 hover:bg-white/[0.05] hover:text-white"
+              >
+                Dashboard
+              </Link>
+
+              <Link
+                href="/customer"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm text-white/60 hover:bg-white/[0.05] hover:text-white"
+              >
+                Services
+              </Link>
+
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="mt-2 rounded-xl bg-violet-500 px-4 py-3 text-center text-sm font-semibold text-white"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* HERO */}
-      <section className="relative overflow-hidden">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-2 lg:py-28">
-          <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#cfe2d6] bg-[#edf7f1] px-4 py-2 text-sm font-medium text-[#176b45]">
-              <span className="h-2 w-2 rounded-full bg-[#2e9d68]" />
-              Built for stronger local communities
-            </div>
+      {/* Hero */}
+      <section className="relative z-10">
+        <div className="mx-auto max-w-7xl px-5 pb-20 pt-20 sm:px-6 sm:pt-28 lg:px-8 lg:pb-28">
+          <div className="grid items-center gap-14 lg:grid-cols-[1.1fr_0.9fr]">
+            {/* Hero copy */}
+            <div>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-violet-400/15 bg-violet-500/[0.08] px-3.5 py-2 text-xs font-medium text-violet-200">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                Community-powered service network
+              </div>
 
-            <h1 className="max-w-3xl text-5xl font-bold leading-[1.05] tracking-[-0.04em] sm:text-6xl">
-              Local skills.
-              <br />
-              Shared resources.
-              <br />
-              <span className="text-[#176b45]">
-                Stronger communities.
-              </span>
-            </h1>
+              <h1 className="max-w-3xl text-5xl font-bold leading-[1.05] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+                Services that
+                <span className="block bg-gradient-to-r from-violet-300 via-blue-300 to-cyan-300 bg-clip-text text-transparent">
+                  connect communities.
+                </span>
+              </h1>
 
-            <p className="mt-6 max-w-xl text-lg leading-8 text-gray-600">
-              SEVA-COOP connects people with trusted local service providers
-              and makes shared tools accessible within their community.
-            </p>
+              <p className="mt-7 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
+                SEVA-COOP connects customers, skilled workers and
+                community resources through one simple digital
+                platform.
+              </p>
 
-            {/* SEARCH */}
-            <div className="mt-8 rounded-2xl border border-[#dfe5df] bg-white p-2 shadow-[0_12px_40px_rgba(23,33,27,0.08)]">
-              <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
-                <div className="flex items-center gap-3 rounded-xl bg-[#f7f8f5] px-4 py-3">
-                  <span className="text-lg">⌕</span>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/login"
+                  className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-violet-500/20 transition hover:-translate-y-0.5 hover:from-violet-400 hover:to-indigo-400"
+                >
+                  Get Started
+                  <span className="transition-transform group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
 
-                  <input
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                    placeholder="What service do you need?"
-                  />
-                </div>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-6 py-3.5 text-sm font-semibold text-white/80 backdrop-blur-xl transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  Explore Dashboard
+                </Link>
+              </div>
 
-                <div className="flex items-center gap-3 rounded-xl bg-[#f7f8f5] px-4 py-3">
-                  <span className="text-lg">📍</span>
+              {/* Stats */}
+              <div className="mt-12 grid max-w-xl grid-cols-3 gap-3">
+                {stats.map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 backdrop-blur-xl"
+                  >
+                    <div className="text-xl font-bold text-white sm:text-2xl">
+                      {stat.value}
+                    </div>
 
-                  <input
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                    placeholder="PIN code"
-                  />
-                </div>
-
-                <button className="rounded-xl bg-[#176b45] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#125638]">
-                  Find Help
-                </button>
+                    <div className="mt-1 text-[10px] uppercase tracking-wider text-white/35 sm:text-xs">
+                      {stat.label}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-5 text-sm text-gray-500">
-              <span>✓ PIN-code based discovery</span>
-              <span>✓ Verified workers</span>
-              <span>✓ Shared tools</span>
-            </div>
-          </div>
+            {/* Hero dashboard preview */}
+            <div className="relative">
+              <div className="absolute -inset-8 rounded-[3rem] bg-violet-500/10 blur-3xl" />
 
-          {/* HERO VISUAL */}
-          <div className="relative hidden lg:block">
-            <div className="absolute -right-10 -top-10 h-72 w-72 rounded-full bg-[#dceee3] blur-3xl" />
-
-            <div className="relative rounded-[2rem] border border-[#dfe5df] bg-white p-5 shadow-[0_25px_70px_rgba(23,33,27,0.12)]">
-              <div className="rounded-3xl bg-[#edf5ef] p-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">
-                      Nearby services
-                    </p>
-
-                    <h3 className="mt-1 text-xl font-bold">
-                      Your community
-                    </h3>
+              <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/30 backdrop-blur-2xl sm:p-5">
+                {/* Fake browser header */}
+                <div className="flex items-center justify-between border-b border-white/[0.07] pb-4">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
                   </div>
 
-                  <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#176b45] shadow-sm">
-                    PIN 3020XX
+                  <div className="rounded-lg border border-white/5 bg-black/10 px-5 py-1.5 text-[9px] text-white/25">
+                    seva-coop / dashboard
                   </div>
+
+                  <span className="text-xs text-white/20">
+                    ⋯
+                  </span>
                 </div>
 
-                <div className="mt-8 space-y-3">
-                  {[
-                    ["🔧", "Home Repair", "2.1 km"],
-                    ["⚡", "Electrical", "3.4 km"],
-                    ["🚰", "Plumbing", "1.8 km"],
-                  ].map(([icon, name, distance]) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f1f4f0] text-xl">
-                          {icon}
-                        </div>
+                {/* Dashboard preview */}
+                <div className="pt-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-violet-300/70">
+                        Overview
+                      </p>
 
-                        <div>
-                          <p className="font-semibold">{name}</p>
+                      <h3 className="mt-1 text-lg font-bold text-white">
+                        Community Dashboard
+                      </h3>
+                    </div>
 
-                          <p className="text-xs text-gray-500">
-                            Verified provider
-                          </p>
-                        </div>
-                      </div>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]">
+                      ◐
+                    </div>
+                  </div>
 
-                      <span className="text-xs font-medium text-gray-500">
-                        {distance}
+                  {/* Mini stats */}
+                  <div className="mt-5 grid grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-3">
+                      <p className="text-[8px] text-white/35">
+                        REQUESTS
+                      </p>
+
+                      <p className="mt-1 text-lg font-bold">
+                        24
+                      </p>
+
+                      <p className="text-[8px] text-emerald-300">
+                        +12%
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-3">
+                      <p className="text-[8px] text-white/35">
+                        ACTIVE
+                      </p>
+
+                      <p className="mt-1 text-lg font-bold">
+                        08
+                      </p>
+
+                      <p className="text-[8px] text-cyan-300">
+                        Live
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-3">
+                      <p className="text-[8px] text-white/35">
+                        COMPLETED
+                      </p>
+
+                      <p className="mt-1 text-lg font-bold">
+                        91
+                      </p>
+
+                      <p className="text-[8px] text-violet-300">
+                        This month
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Request preview */}
+                  <div className="mt-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-white/80">
+                        Recent Requests
+                      </p>
+
+                      <span className="text-[9px] text-violet-300">
+                        View all →
                       </span>
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-5 rounded-2xl bg-[#176b45] p-5 text-white">
-                  <p className="text-sm opacity-80">
-                    Community availability
-                  </p>
+                    <div className="mt-3 space-y-2">
+                      {[
+                        ["⚡", "Electrical Repair", "In Progress"],
+                        ["🔧", "Plumbing", "Accepted"],
+                        ["🏠", "Home Services", "Completed"],
+                      ].map(([icon, title, status]) => (
+                        <div
+                          key={title}
+                          className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-black/10 p-2.5"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.06] text-sm">
+                            {icon}
+                          </div>
 
-                  <p className="mt-1 text-2xl font-bold">
-                    24+ providers
-                  </p>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[10px] font-medium text-white/75">
+                              {title}
+                            </p>
 
-                  <p className="mt-1 text-xs opacity-70">
-                    available around your area
-                  </p>
+                            <p className="mt-0.5 text-[8px] text-white/30">
+                              Community service request
+                            </p>
+                          </div>
+
+                          <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] text-violet-300">
+                            {status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bottom card */}
+                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-violet-400/10 bg-gradient-to-r from-violet-500/[0.08] to-blue-500/[0.04] p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-lg">
+                      ✦
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold text-white/80">
+                        Everything connected
+                      </p>
+
+                      <p className="mt-0.5 text-[9px] text-white/35">
+                        Customers • Workers • Community
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -236,246 +389,210 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TRUST STRIP */}
-      <section className="border-y border-[#e4e8e3] bg-white">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-8 md:grid-cols-4">
-          {[
-            ["500+", "Community Members"],
-            ["120+", "Verified Workers"],
-            ["40+", "Shared Tools"],
-            ["15+", "Service Categories"],
-          ].map(([number, label]) => (
-            <div key={label} className="text-center">
-              <p className="text-2xl font-bold text-[#176b45]">
-                {number}
-              </p>
-
-              <p className="mt-1 text-sm text-gray-500">
-                {label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* SERVICES */}
-      <section
-        id="services"
-        className="mx-auto max-w-7xl px-6 py-24"
-      >
-        <div className="max-w-2xl">
-          <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#176b45]">
-            Local services
-          </p>
-
-          <h2 className="mt-3 text-4xl font-bold tracking-tight">
-            Help is closer than you think.
-          </h2>
-
-          <p className="mt-4 text-gray-600">
-            Discover skilled people around your area and get everyday tasks
-            done through your local community.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {services.map((service) => (
-            <div
-              key={service.title}
-              className="group rounded-3xl border border-[#e0e5e0] bg-white p-6 transition duration-300 hover:-translate-y-1 hover:border-[#b8d4c3] hover:shadow-xl"
-            >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#edf7f1] text-2xl">
-                {service.icon}
-              </div>
-
-              <h3 className="mt-6 text-lg font-bold">
-                {service.title}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-gray-500">
-                {service.description}
-              </p>
-
-              <button className="mt-6 text-sm font-semibold text-[#176b45]">
-                Explore →
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section
-        id="how-it-works"
-        className="bg-[#17211b] text-white"
-      >
-        <div className="mx-auto max-w-7xl px-6 py-24">
+      {/* Services */}
+      <section className="relative z-10 border-t border-white/[0.06]">
+        <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#8dd3ac]">
-              Simple by design
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
+              Our Services
             </p>
 
-            <h2 className="mt-3 text-4xl font-bold tracking-tight">
-              From a need to a solution in three steps.
+            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+              One platform.
+              <span className="text-white/40">
+                {" "}
+                Many ways to help.
+              </span>
             </h2>
+
+            <p className="mt-4 text-sm leading-6 text-white/45 sm:text-base">
+              Request the support you need and connect with the
+              right community service provider.
+            </p>
           </div>
 
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
-            {[
-              [
-                "01",
-                "Tell us what you need",
-                "Choose a service, describe your requirement and enter your area PIN code.",
-              ],
-              [
-                "02",
-                "Get matched locally",
-                "SEVA-COOP finds relevant workers and resources available around your area.",
-              ],
-              [
-                "03",
-                "Get it done",
-                "Connect, complete the task and strengthen your local community.",
-              ],
-            ].map(([number, title, description]) => (
-              <div
-                key={number}
-                className="rounded-3xl border border-white/10 bg-white/5 p-7"
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => (
+              <Link
+                key={service.title}
+                href="/customer"
+                className="group rounded-3xl border border-white/[0.08] bg-white/[0.035] p-6 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-violet-400/20 hover:bg-white/[0.055] hover:shadow-xl hover:shadow-violet-500/5"
               >
-                <span className="text-sm font-bold text-[#8dd3ac]">
-                  {number}
-                </span>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.05] text-xl transition group-hover:scale-105">
+                  {service.icon}
+                </div>
 
-                <h3 className="mt-8 text-xl font-bold">
-                  {title}
+                <h3 className="mt-5 text-base font-semibold text-white">
+                  {service.title}
                 </h3>
 
-                <p className="mt-3 leading-7 text-white/60">
-                  {description}
+                <p className="mt-2 text-sm leading-6 text-white/40">
+                  {service.description}
                 </p>
-              </div>
+
+                <div className="mt-5 text-xs font-semibold text-violet-300 opacity-70 transition group-hover:opacity-100">
+                  Request service →
+                </div>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* TOOL LIBRARY */}
-      <section
-        id="tools"
-        className="mx-auto max-w-7xl px-6 py-24"
-      >
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#176b45]">
-              Tool library
-            </p>
+      {/* How it works */}
+      <section className="relative z-10">
+        <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8">
+          <div className="overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.035] p-6 backdrop-blur-xl sm:p-10 lg:p-12">
+            <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                  Simple Workflow
+                </p>
 
-            <h2 className="mt-3 text-4xl font-bold tracking-tight">
-              Share more. Buy less.
-            </h2>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                  From request to
+                  <span className="text-violet-300">
+                    {" "}
+                    resolution.
+                  </span>
+                </h2>
 
-            <p className="mt-4 max-w-xl text-gray-600">
-              Access tools shared by your community instead of purchasing
-              equipment you only need occasionally.
-            </p>
-          </div>
+                <p className="mt-4 text-sm leading-6 text-white/45">
+                  SEVA-COOP keeps the entire service journey in one
+                  connected workflow.
+                </p>
 
-          <button className="w-fit rounded-xl border border-[#d9dfd9] bg-white px-5 py-3 text-sm font-semibold transition hover:border-[#176b45]">
-            Explore Tool Library →
-          </button>
-        </div>
-
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {tools.map((tool) => (
-            <div
-              key={tool.name}
-              className="rounded-3xl border border-[#e0e5e0] bg-white p-6"
-            >
-              <div className="flex h-36 items-center justify-center rounded-2xl bg-[#f1f4f0] text-6xl">
-                {tool.icon}
+                <Link
+                  href="/login"
+                  className="mt-7 inline-flex rounded-xl bg-white/[0.07] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.11]"
+                >
+                  Join SEVA-COOP →
+                </Link>
               </div>
 
-              <div className="mt-5 flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-bold">{tool.name}</h3>
+              <div className="space-y-3">
+                {[
+                  {
+                    number: "01",
+                    title: "Create a request",
+                    text: "Tell us what service you need and when you need it.",
+                  },
+                  {
+                    number: "02",
+                    title: "Get connected",
+                    text: "Your request becomes visible to suitable service workers.",
+                  },
+                  {
+                    number: "03",
+                    title: "Track progress",
+                    text: "Follow your request from accepted to in progress.",
+                  },
+                  {
+                    number: "04",
+                    title: "Complete",
+                    text: "The worker completes the service and closes the request.",
+                  },
+                ].map((step) => (
+                  <div
+                    key={step.number}
+                    className="flex gap-4 rounded-2xl border border-white/[0.06] bg-black/10 p-4 transition hover:border-violet-400/15 hover:bg-white/[0.03]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-500/10 text-xs font-bold text-violet-300">
+                      {step.number}
+                    </div>
 
-                  <p className="mt-1 text-sm text-gray-500">
-                    {tool.category}
-                  </p>
-                </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">
+                        {step.title}
+                      </h3>
 
-                <span className="rounded-full bg-[#edf7f1] px-3 py-1 text-xs font-semibold text-[#176b45]">
-                  {tool.status}
-                </span>
+                      <p className="mt-1 text-xs leading-5 text-white/40">
+                        {step.text}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="px-6 pb-24">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-[#dceee3] px-8 py-14 md:px-14">
-          <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center">
-            <div className="max-w-2xl">
-              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-                Your skills can make a difference.
+      <section className="relative z-10">
+        <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-[2rem] border border-violet-400/10 bg-gradient-to-br from-violet-500/[0.12] via-indigo-500/[0.07] to-blue-500/[0.04] p-8 text-center sm:p-12">
+            <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-96 -translate-x-1/2 rounded-full bg-violet-500/10 blur-3xl" />
+
+            <div className="relative">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-2xl">
+                ✦
+              </div>
+
+              <h2 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
+                Ready to get started?
               </h2>
 
-              <p className="mt-3 text-gray-600">
-                Join your local network, share your skills or make community
-                resources available to others.
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/45">
+                Join the SEVA-COOP community and make accessing
+                local services simpler.
               </p>
-            </div>
 
-            <button className="w-fit shrink-0 rounded-xl bg-[#176b45] px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#125638]">
-              Join SEVA-COOP
-            </button>
+              <Link
+                href="/login"
+                className="mt-7 inline-flex rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 px-7 py-3.5 text-sm font-semibold text-white shadow-xl shadow-violet-500/20 transition hover:-translate-y-0.5 hover:from-violet-400 hover:to-indigo-400"
+              >
+                Get Started →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="border-t border-[#e4e8e3] bg-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 md:grid-cols-4">
-          <div className="md:col-span-2">
-            <div className="text-lg font-bold">
-              SEVA-COOP
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/[0.06]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+          <div>
+            <div className="text-sm font-bold">
+              SEVA<span className="text-violet-400">-COOP</span>
             </div>
 
-            <p className="mt-3 max-w-sm text-sm leading-6 text-gray-500">
-              A community-powered platform connecting local skills,
-              services and shared resources.
+            <p className="mt-1 text-xs text-white/30">
+              Connecting communities through service.
             </p>
           </div>
 
-          <div>
-            <p className="font-semibold">Platform</p>
+          <div className="flex flex-wrap gap-5 text-xs text-white/35">
+            <Link
+              href="/dashboard"
+              className="transition hover:text-white"
+            >
+              Dashboard
+            </Link>
 
-            <div className="mt-4 space-y-3 text-sm text-gray-500">
-              <p>Services</p>
-              <p>Tool Library</p>
-              <p>How It Works</p>
-            </div>
-          </div>
+            <Link
+              href="/customer"
+              className="transition hover:text-white"
+            >
+              Services
+            </Link>
 
-          <div>
-            <p className="font-semibold">Support</p>
+            <Link
+              href="/worker"
+              className="transition hover:text-white"
+            >
+              Worker Portal
+            </Link>
 
-            <div className="mt-4 space-y-3 text-sm text-gray-500">
-              <p>Help Center</p>
-              <p>Privacy</p>
-              <p>Terms</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-[#e4e8e3]">
-          <div className="mx-auto max-w-7xl px-6 py-5 text-xs text-gray-500">
-            © 2026 SEVA-COOP. Built for stronger communities.
+            <Link
+              href="/login"
+              className="transition hover:text-white"
+            >
+              Login
+            </Link>
           </div>
         </div>
       </footer>
     </main>
-  )
+  );
 }

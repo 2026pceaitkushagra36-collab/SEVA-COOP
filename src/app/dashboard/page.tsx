@@ -1,10 +1,8 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  hasSupabaseConfig,
-  supabase,
-} from "@/lib/supabase/client";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase/client";
 
 function getSupabaseClient() {
   if (!hasSupabaseConfig || !supabase) {
@@ -57,37 +55,31 @@ const statusConfig: Record<string, StatusConfig> = {
     className:
       "bg-amber-500/15 text-amber-300 border-amber-400/20",
   },
-
   matching: {
     label: "Looking for Worker",
     className:
       "bg-blue-500/15 text-blue-300 border-blue-400/20",
   },
-
   assigned: {
     label: "Assigned",
     className:
       "bg-violet-500/15 text-violet-300 border-violet-400/20",
   },
-
   accepted: {
     label: "Accepted",
     className:
       "bg-cyan-500/15 text-cyan-300 border-cyan-400/20",
   },
-
   in_progress: {
     label: "In Progress",
     className:
       "bg-indigo-500/15 text-indigo-300 border-indigo-400/20",
   },
-
   completed: {
     label: "Completed",
     className:
       "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
   },
-
   cancelled: {
     label: "Cancelled",
     className:
@@ -110,6 +102,10 @@ function getServiceIcon(serviceName: string): string {
 
   if (name.includes("electric")) return "⚡";
   if (name.includes("plumb")) return "🔧";
+  if (name.includes("carpent")) return "🪚";
+  if (name.includes("paint")) return "🎨";
+  if (name.includes("wash")) return "🧺";
+  if (name.includes("ac")) return "❄️";
   if (name.includes("home")) return "🏠";
   if (name.includes("health")) return "🩺";
   if (name.includes("education")) return "📚";
@@ -185,60 +181,55 @@ export function WorkerServiceRequests() {
     try {
       setError(null);
 
-      const sessionResponse =
-        await client.auth.getSession();
+      const {
+        data: { session },
+      } = await client.auth.getSession();
 
-      const user =
-        sessionResponse.data.session?.user ?? null;
+      const user = session?.user ?? null;
 
       if (!user) {
         setRequests([]);
-
         setError(
           "Please log in as a worker to view service requests."
         );
-
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
-      const { data, error: requestError } =
-        await client
-          .from("service_requests")
-          .select(`
-            id,
-            customer_id,
-            service_id,
-            service_area_id,
-            assigned_worker_id,
-            title,
-            description,
-            preferred_date,
-            preferred_time,
-            status,
-            created_at,
-            services (
-              name
-            ),
-            service_areas (
-              pincode
-            )
-          `)
-          .or(
-            `assigned_worker_id.is.null,assigned_worker_id.eq.${user.id}`
+      const { data, error: requestError } = await client
+        .from("service_requests")
+        .select(`
+          id,
+          customer_id,
+          service_id,
+          service_area_id,
+          assigned_worker_id,
+          title,
+          description,
+          preferred_date,
+          preferred_time,
+          status,
+          created_at,
+          services (
+            name
+          ),
+          service_areas (
+            pincode
           )
-          .order("created_at", {
-            ascending: false,
-          });
+        `)
+        .or(
+          `assigned_worker_id.is.null,assigned_worker_id.eq.${user.id}`
+        )
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (requestError) {
         throw requestError;
       }
 
-      setRequests(
-        (data ?? []) as ServiceRequest[]
-      );
+      setRequests((data ?? []) as ServiceRequest[]);
     } catch (requestError) {
       console.error(
         "Failed to load service requests:",
@@ -273,42 +264,54 @@ export function WorkerServiceRequests() {
     await loadRequests();
   };
 
-  const acceptRequest = async (
-    request: ServiceRequest
-  ) => {
+  const getCurrentWorker = async () => {
     const client = getSupabaseClient();
 
     if (!client) {
-      setError("Supabase is not configured.");
-      return;
+      throw new Error("Supabase is not configured.");
     }
 
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+
+    const user = session?.user ?? null;
+
+    if (!user) {
+      throw new Error("Please log in as a worker first.");
+    }
+
+    return {
+      client,
+      user,
+    };
+  };
+
+  const acceptRequest = async (request: ServiceRequest) => {
     setUpdatingId(request.id);
 
     try {
-      const sessionResponse =
-        await client.auth.getSession();
+      const { client, user } = await getCurrentWorker();
 
-      const user =
-        sessionResponse.data.session?.user ?? null;
-
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } =
-        await client
-          .from("service_requests")
-          .update({
-            assigned_worker_id: user.id,
-            status: "accepted",
-          })
-          .eq("id", request.id)
-          .is("assigned_worker_id", null);
+      const { data, error: updateError } = await client
+        .from("service_requests")
+        .update({
+          assigned_worker_id: user.id,
+          status: "accepted",
+        })
+        .eq("id", request.id)
+        .in("status", ["pending", "matching"])
+        .is("assigned_worker_id", null)
+        .select("id");
 
       if (updateError) {
         throw updateError;
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error(
+          "This request is no longer available. Please refresh the page."
+        );
       }
 
       await loadRequests();
@@ -329,39 +332,21 @@ export function WorkerServiceRequests() {
     }
   };
 
-  const rejectRequest = async (
-    request: ServiceRequest
-  ) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
+  const rejectRequest = async (request: ServiceRequest) => {
     setUpdatingId(request.id);
 
     try {
-      const sessionResponse =
-        await client.auth.getSession();
+      const { client, user } = await getCurrentWorker();
 
-      const user =
-        sessionResponse.data.session?.user ?? null;
-
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } =
-        await client
-          .from("service_requests")
-          .update({
-            assigned_worker_id: null,
-            status: "matching",
-          })
-          .eq("id", request.id)
-          .eq("assigned_worker_id", user.id);
+      const { error: updateError } = await client
+        .from("service_requests")
+        .update({
+          assigned_worker_id: null,
+          status: "matching",
+        })
+        .eq("id", request.id)
+        .eq("assigned_worker_id", user.id)
+        .in("status", ["accepted", "assigned"]);
 
       if (updateError) {
         throw updateError;
@@ -385,44 +370,42 @@ export function WorkerServiceRequests() {
     }
   };
 
-  const startRequest = async (
-    request: ServiceRequest
-  ) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
+  const startRequest = async (request: ServiceRequest) => {
     setUpdatingId(request.id);
 
     try {
-      const sessionResponse =
-        await client.auth.getSession();
+      const { client, user } = await getCurrentWorker();
 
-      const user =
-        sessionResponse.data.session?.user ?? null;
-
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } =
-        await client
-          .from("service_requests")
-          .update({
-            status: "in_progress",
-          })
-          .eq("id", request.id)
-          .eq("assigned_worker_id", user.id);
+      const { data, error: updateError } = await client
+        .from("service_requests")
+        .update({
+          status: "in_progress",
+        })
+        .eq("id", request.id)
+        .eq("assigned_worker_id", user.id)
+        .in("status", ["accepted", "assigned"])
+        .select("id");
 
       if (updateError) {
         throw updateError;
       }
 
+      if (!data || data.length === 0) {
+        throw new Error(
+          "This request cannot be started in its current state. Please refresh."
+        );
+      }
+
       await loadRequests();
+
+      setSelectedRequest((current) =>
+        current?.id === request.id
+          ? {
+              ...current,
+              status: "in_progress",
+            }
+          : current
+      );
     } catch (updateError) {
       console.error(
         "Failed to start service request:",
@@ -442,38 +425,29 @@ export function WorkerServiceRequests() {
   const completeRequest = async (
     request: ServiceRequest
   ) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
     setUpdatingId(request.id);
 
     try {
-      const sessionResponse =
-        await client.auth.getSession();
+      const { client, user } = await getCurrentWorker();
 
-      const user =
-        sessionResponse.data.session?.user ?? null;
-
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } =
-        await client
-          .from("service_requests")
-          .update({
-            status: "completed",
-          })
-          .eq("id", request.id)
-          .eq("assigned_worker_id", user.id);
+      const { data, error: updateError } = await client
+        .from("service_requests")
+        .update({
+          status: "completed",
+        })
+        .eq("id", request.id)
+        .eq("assigned_worker_id", user.id)
+        .eq("status", "in_progress")
+        .select("id");
 
       if (updateError) {
         throw updateError;
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error(
+          "This request cannot be completed in its current state. Please refresh."
+        );
       }
 
       await loadRequests();
@@ -509,14 +483,18 @@ export function WorkerServiceRequests() {
     ).length;
 
     const completed = requests.filter(
-      (request) =>
-        request.status === "completed"
+      (request) => request.status === "completed"
+    ).length;
+
+    const cancelled = requests.filter(
+      (request) => request.status === "cancelled"
     ).length;
 
     return {
       pending,
       active,
       completed,
+      cancelled,
       total: requests.length,
     };
   }, [requests]);
@@ -539,12 +517,12 @@ export function WorkerServiceRequests() {
           </div>
 
           <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Service Requests
+            Worker Service Requests
           </h2>
 
           <p className="mt-1 max-w-2xl text-sm text-white/55">
-            View nearby customer requests, accept jobs,
-            start work, and update completed services.
+            View customer requests, accept available jobs,
+            start assigned work, and mark completed services.
           </p>
         </div>
 
@@ -554,39 +532,29 @@ export function WorkerServiceRequests() {
           disabled={refreshing}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span
-            className={
-              refreshing ? "animate-spin" : ""
-            }
-          >
+          <span className={refreshing ? "animate-spin" : ""}>
             ↻
           </span>
 
-          {refreshing
-            ? "Refreshing..."
-            : "Refresh"}
+          {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
       {error && (
         <div className="mb-6 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-4">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 text-lg">
-              ⚠️
-            </span>
+            <span className="mt-0.5 text-lg">⚠️</span>
 
             <div>
               <p className="font-medium text-red-200">
-                Unable to load service requests
+                Unable to process service request
               </p>
 
               <p className="mt-1 text-sm text-red-200/70">
                 {error}
               </p>
 
-              {error
-                .toLowerCase()
-                .includes("log in") && (
+              {error.toLowerCase().includes("log in") && (
                 <a
                   href="/login"
                   className="mt-3 inline-flex rounded-lg bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-500/30"
@@ -624,7 +592,7 @@ export function WorkerServiceRequests() {
           </p>
 
           <p className="mt-1 text-xs text-cyan-300/80">
-            Currently assigned
+            Assigned or in progress
           </p>
         </div>
 
@@ -652,7 +620,7 @@ export function WorkerServiceRequests() {
           </p>
 
           <p className="mt-1 text-xs text-violet-300/80">
-            In your request feed
+            Current worker feed
           </p>
         </div>
       </div>
@@ -700,203 +668,176 @@ export function WorkerServiceRequests() {
           </div>
         )}
 
-      {!loading &&
-        visibleRequests.length > 0 && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {visibleRequests.map((request) => {
-              const serviceName =
-                request.services?.[0]?.name ||
-                request.title ||
-                "Service Request";
+      {!loading && visibleRequests.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {visibleRequests.map((request) => {
+            const serviceName =
+              request.services?.[0]?.name ||
+              request.title ||
+              "Service Request";
 
-              const status =
-                getStatusConfig(request.status);
+            const status = getStatusConfig(request.status);
 
-              const isUpdating =
-                updatingId === request.id;
+            const isUpdating = updatingId === request.id;
 
-              const canAccept =
-                (request.status === "pending" ||
-                  request.status === "matching") &&
-                !request.assigned_worker_id;
+            const canAccept =
+              (request.status === "pending" ||
+                request.status === "matching") &&
+              !request.assigned_worker_id;
 
-              const isAssigned =
-                request.assigned_worker_id !== null;
+            const isAssigned =
+              request.assigned_worker_id !== null;
 
-              const canStart =
-                isAssigned &&
-                (request.status === "accepted" ||
-                  request.status === "assigned");
+            const canStart =
+              isAssigned &&
+              (request.status === "accepted" ||
+                request.status === "assigned");
 
-              const canComplete =
-                isAssigned &&
-                request.status === "in_progress";
+            const canComplete =
+              isAssigned &&
+              request.status === "in_progress";
 
-              return (
-                <article
-                  key={request.id}
-                  className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/10 backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-400/20 hover:bg-white/[0.06]"
-                >
-                  <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl transition group-hover:bg-violet-500/20" />
+            return (
+              <article
+                key={request.id}
+                className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/10 backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-400/20 hover:bg-white/[0.06]"
+              >
+                <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl transition group-hover:bg-violet-500/20" />
 
-                  <div className="relative flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] text-2xl">
-                        {getServiceIcon(serviceName)}
-                      </div>
-
-                      <div className="min-w-0">
-                        <h3 className="truncate text-base font-semibold text-white">
-                          {serviceName}
-                        </h3>
-
-                        <p className="mt-0.5 text-xs text-white/40">
-                          Request #
-                          {request.id.slice(0, 8)}
-                        </p>
-                      </div>
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] text-2xl">
+                      {getServiceIcon(serviceName)}
                     </div>
 
-                    <span
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.className}`}
-                    >
-                      {status.label}
-                    </span>
-                  </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-semibold text-white">
+                        {serviceName}
+                      </h3>
 
-                  <div className="relative mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-white/5 bg-black/10 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-white/35">
-                        Location
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium text-white/80">
-                        {request.service_areas?.[0]
-                          ?.pincode ||
-                          "Not specified"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/5 bg-black/10 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-white/35">
-                        Preferred Date
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium text-white/80">
-                        {formatDate(
-                          request.preferred_date
-                        )}
+                      <p className="mt-0.5 text-xs text-white/40">
+                        Request #{request.id.slice(0, 8)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="relative mt-3 rounded-xl border border-white/5 bg-black/10 p-3">
+                  <span
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.className}`}
+                  >
+                    {status.label}
+                  </span>
+                </div>
+
+                <div className="relative mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/5 bg-black/10 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-white/35">
-                      Customer Notes
+                      Location
                     </p>
 
-                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-white/65">
-                      {request.description ||
-                        "No additional instructions provided."}
+                    <p className="mt-1 text-sm font-medium text-white/80">
+                      {request.service_areas?.[0]?.pincode ||
+                        "Not specified"}
                     </p>
                   </div>
 
-                  <p className="relative mt-3 text-[11px] text-white/30">
-                    Requested{" "}
-                    {formatDateTime(
-                      request.created_at
-                    )}
+                  <div className="rounded-xl border border-white/5 bg-black/10 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-white/35">
+                      Preferred Date
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium text-white/80">
+                      {formatDate(request.preferred_date)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative mt-3 rounded-xl border border-white/5 bg-black/10 p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/35">
+                    Customer Notes
                   </p>
 
-                  <div className="relative mt-5 flex flex-wrap gap-2">
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-white/65">
+                    {request.description ||
+                      "No additional instructions provided."}
+                  </p>
+                </div>
+
+                <p className="relative mt-3 text-[11px] text-white/30">
+                  Requested {formatDateTime(request.created_at)}
+                </p>
+
+                <div className="relative mt-5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRequest(request)}
+                    className="rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+                  >
+                    View Details
+                  </button>
+
+                  {canAccept && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={() => void acceptRequest(request)}
+                        className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isUpdating
+                          ? "Accepting..."
+                          : "Accept Request"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={() => void rejectRequest(request)}
+                        className="rounded-xl border border-red-400/15 bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {canStart && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setSelectedRequest(request)
-                      }
-                      className="rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+                      disabled={isUpdating}
+                      onClick={() => void startRequest(request)}
+                      className="rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      View Details
+                      {isUpdating
+                        ? "Starting..."
+                        : "Start Work"}
                     </button>
+                  )}
 
-                    {canAccept && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={isUpdating}
-                          onClick={() =>
-                            void acceptRequest(
-                              request
-                            )
-                          }
-                          className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isUpdating
-                            ? "Accepting..."
-                            : "Accept Request"}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={isUpdating}
-                          onClick={() =>
-                            void rejectRequest(
-                              request
-                            )
-                          }
-                          className="rounded-xl border border-red-400/15 bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-
-                    {canStart && (
-                      <button
-                        type="button"
-                        disabled={isUpdating}
-                        onClick={() =>
-                          void startRequest(request)
-                        }
-                        className="rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isUpdating
-                          ? "Starting..."
-                          : "Start Work"}
-                      </button>
-                    )}
-
-                    {canComplete && (
-                      <button
-                        type="button"
-                        disabled={isUpdating}
-                        onClick={() =>
-                          void completeRequest(
-                            request
-                          )
-                        }
-                        className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isUpdating
-                          ? "Completing..."
-                          : "Mark Completed"}
-                      </button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
+                  {canComplete && (
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() =>
+                        void completeRequest(request)
+                      }
+                      className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isUpdating
+                        ? "Completing..."
+                        : "Mark Completed"}
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {selectedRequest && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+            if (event.target === event.currentTarget) {
               setSelectedRequest(null);
             }
           }}
@@ -909,8 +850,7 @@ export function WorkerServiceRequests() {
                 </p>
 
                 <h3 className="mt-2 text-xl font-bold text-white">
-                  {selectedRequest.services?.[0]
-                    ?.name ||
+                  {selectedRequest.services?.[0]?.name ||
                     selectedRequest.title ||
                     "Service Request"}
                 </h3>
@@ -918,9 +858,7 @@ export function WorkerServiceRequests() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setSelectedRequest(null)
-                }
+                onClick={() => setSelectedRequest(null)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-white/60 transition hover:bg-white/10 hover:text-white"
               >
                 ×
@@ -936,15 +874,13 @@ export function WorkerServiceRequests() {
                 <div className="mt-2">
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
-                      getStatusConfig(
-                        selectedRequest.status
-                      ).className
+                      getStatusConfig(selectedRequest.status)
+                        .className
                     }`}
                   >
                     {
-                      getStatusConfig(
-                        selectedRequest.status
-                      ).label
+                      getStatusConfig(selectedRequest.status)
+                        .label
                     }
                   </span>
                 </div>
@@ -958,8 +894,7 @@ export function WorkerServiceRequests() {
 
                   <p className="mt-1 text-sm font-medium text-white">
                     {selectedRequest.service_areas?.[0]
-                      ?.pincode ||
-                      "Not specified"}
+                      ?.pincode || "Not specified"}
                   </p>
                 </div>
 
@@ -983,9 +918,7 @@ export function WorkerServiceRequests() {
                   </p>
 
                   <p className="mt-1 text-sm font-medium text-white">
-                    {
-                      selectedRequest.preferred_time
-                    }
+                    {selectedRequest.preferred_time}
                   </p>
                 </div>
               )}
@@ -1017,35 +950,27 @@ export function WorkerServiceRequests() {
                 </p>
 
                 <p className="mt-1 text-sm text-white/70">
-                  {formatDateTime(
-                    selectedRequest.created_at
-                  )}
+                  {formatDateTime(selectedRequest.created_at)}
                 </p>
               </div>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {(selectedRequest.status ===
-                "pending" ||
-                selectedRequest.status ===
-                  "matching") &&
+              {(selectedRequest.status === "pending" ||
+                selectedRequest.status === "matching") &&
                 !selectedRequest.assigned_worker_id && (
                   <>
                     <button
                       type="button"
                       disabled={
-                        updatingId ===
-                        selectedRequest.id
+                        updatingId === selectedRequest.id
                       }
                       onClick={() =>
-                        void acceptRequest(
-                          selectedRequest
-                        )
+                        void acceptRequest(selectedRequest)
                       }
                       className="flex-1 rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
                     >
-                      {updatingId ===
-                      selectedRequest.id
+                      {updatingId === selectedRequest.id
                         ? "Accepting..."
                         : "Accept Request"}
                     </button>
@@ -1053,13 +978,10 @@ export function WorkerServiceRequests() {
                     <button
                       type="button"
                       disabled={
-                        updatingId ===
-                        selectedRequest.id
+                        updatingId === selectedRequest.id
                       }
                       onClick={() =>
-                        void rejectRequest(
-                          selectedRequest
-                        )
+                        void rejectRequest(selectedRequest)
                       }
                       className="rounded-xl border border-red-400/15 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50"
                     >
@@ -1068,49 +990,38 @@ export function WorkerServiceRequests() {
                   </>
                 )}
 
-              {(selectedRequest.status ===
-                "accepted" ||
-                selectedRequest.status ===
-                  "assigned") &&
+              {(selectedRequest.status === "accepted" ||
+                selectedRequest.status === "assigned") &&
                 selectedRequest.assigned_worker_id && (
                   <button
                     type="button"
                     disabled={
-                      updatingId ===
-                      selectedRequest.id
+                      updatingId === selectedRequest.id
                     }
                     onClick={() =>
-                      void startRequest(
-                        selectedRequest
-                      )
+                      void startRequest(selectedRequest)
                     }
                     className="flex-1 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-50"
                   >
-                    {updatingId ===
-                    selectedRequest.id
+                    {updatingId === selectedRequest.id
                       ? "Starting..."
                       : "Start Work"}
                   </button>
                 )}
 
-              {selectedRequest.status ===
-                "in_progress" &&
+              {selectedRequest.status === "in_progress" &&
                 selectedRequest.assigned_worker_id && (
                   <button
                     type="button"
                     disabled={
-                      updatingId ===
-                      selectedRequest.id
+                      updatingId === selectedRequest.id
                     }
                     onClick={() =>
-                      void completeRequest(
-                        selectedRequest
-                      )
+                      void completeRequest(selectedRequest)
                     }
                     className="flex-1 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-50"
                   >
-                    {updatingId ===
-                    selectedRequest.id
+                    {updatingId === selectedRequest.id
                       ? "Completing..."
                       : "Mark Completed"}
                   </button>
@@ -1118,9 +1029,7 @@ export function WorkerServiceRequests() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setSelectedRequest(null)
-                }
+                onClick={() => setSelectedRequest(null)}
                 className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
               >
                 Close

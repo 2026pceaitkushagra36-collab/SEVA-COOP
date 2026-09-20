@@ -1,25 +1,20 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { hasSupabaseConfig, supabase } from "@/lib/supabase/client";
+import {
+  acceptServiceRequest,
+  completeServiceRequest,
+  rejectServiceRequest,
+  startServiceRequest,
+  type ServiceRequestStatus,
+} from "@/services/seva-data";
+import {
+  hasSupabaseConfig,
+  supabase,
+} from "@/lib/supabase/client";
 
-function getSupabaseClient() {
-  if (!hasSupabaseConfig || !supabase) {
-    return null;
-  }
-
-  return supabase;
-}
-
-type RequestStatus =
-  | "pending"
-  | "matching"
-  | "assigned"
-  | "accepted"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
-  | string;
+type RequestStatus = ServiceRequestStatus | string;
 
 type ServiceRequest = {
   id: string;
@@ -101,6 +96,10 @@ function getServiceIcon(serviceName: string): string {
 
   if (name.includes("electric")) return "⚡";
   if (name.includes("plumb")) return "🔧";
+  if (name.includes("carpent")) return "🪚";
+  if (name.includes("paint")) return "🎨";
+  if (name.includes("washing")) return "🧺";
+  if (name.includes("ac")) return "❄️";
   if (name.includes("home")) return "🏠";
   if (name.includes("health")) return "🩺";
   if (name.includes("education")) return "📚";
@@ -153,18 +152,13 @@ export function WorkerServiceRequests() {
 
   /*
    * Load service requests for the logged-in worker.
+   *
+   * We keep the enriched query here because the Worker UI
+   * needs service names and service-area pincodes for display.
+   * All request mutations use the shared service layer.
    */
   const loadRequests = useCallback(async () => {
-    if (!hasSupabaseConfig) {
-      setError("Supabase is not configured.");
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    const client = getSupabaseClient();
-
-    if (!client) {
+    if (!hasSupabaseConfig || !supabase) {
       setError("Supabase is not configured.");
       setLoading(false);
       setRefreshing(false);
@@ -174,35 +168,20 @@ export function WorkerServiceRequests() {
     try {
       setError(null);
 
-      let user = null;
-
-      try {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    return;
-  }
-
-  const sessionResponse = await client.auth.getSession();
-  const user = sessionResponse.data.session?.user ?? null;
-      } catch (sessionError) {
-        console.error(
-          "Unable to read Supabase session:",
-          sessionError
-        );
-      }
+      const sessionResponse = await supabase.auth.getSession();
+      const user = sessionResponse.data.session?.user ?? null;
 
       if (!user) {
         setRequests([]);
         setError(
-          "Please log in as a worker to view service requests."
+          "Please log in as a worker to view service requests.",
         );
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
-      const { data, error: requestError } = await client
+      const { data, error: requestError } = await supabase
         .from("service_requests")
         .select(`
           id,
@@ -224,7 +203,7 @@ export function WorkerServiceRequests() {
           )
         `)
         .or(
-          `assigned_worker_id.is.null,assigned_worker_id.eq.${user.id}`
+          `assigned_worker_id.is.null,assigned_worker_id.eq.${user.id}`,
         )
         .order("created_at", {
           ascending: false,
@@ -238,13 +217,13 @@ export function WorkerServiceRequests() {
     } catch (requestError) {
       console.error(
         "Failed to load service requests:",
-        requestError
+        requestError,
       );
 
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Failed to load service requests."
+          : "Failed to load service requests.",
       );
     } finally {
       setLoading(false);
@@ -274,37 +253,21 @@ export function WorkerServiceRequests() {
 
   /*
    * Accept a request.
+   *
+   * Uses the shared service layer so the same business
+   * logic is used everywhere in the application.
    */
   const acceptRequest = async (request: ServiceRequest) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
     setUpdatingId(request.id);
+    setError(null);
 
     try {
-      const sessionResponse = await client.auth.getSession();
-      const user = sessionResponse.data.session?.user ?? null;
+      const result = await acceptServiceRequest(request.id);
 
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } = await client
-        .from("service_requests")
-        .update({
-          assigned_worker_id: user.id,
-          status: "accepted",
-        })
-        .eq("id", request.id)
-        .is("assigned_worker_id", null);
-
-      if (updateError) {
-        throw updateError;
+      if (!result.success) {
+        throw new Error(
+          result.error ?? "Failed to accept request.",
+        );
       }
 
       await loadRequests();
@@ -312,13 +275,13 @@ export function WorkerServiceRequests() {
     } catch (updateError) {
       console.error(
         "Failed to accept service request:",
-        updateError
+        updateError,
       );
 
       setError(
         updateError instanceof Error
           ? updateError.message
-          : "Failed to accept request."
+          : "Failed to accept request.",
       );
     } finally {
       setUpdatingId(null);
@@ -326,38 +289,19 @@ export function WorkerServiceRequests() {
   };
 
   /*
-   * Reject a request.
+   * Reject / release a request.
    */
   const rejectRequest = async (request: ServiceRequest) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
     setUpdatingId(request.id);
+    setError(null);
 
     try {
-      const sessionResponse = await client.auth.getSession();
-      const user = sessionResponse.data.session?.user ?? null;
+      const result = await rejectServiceRequest(request.id);
 
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } = await client
-        .from("service_requests")
-        .update({
-          assigned_worker_id: null,
-          status: "matching",
-        })
-        .eq("id", request.id)
-        .eq("assigned_worker_id", user.id);
-
-      if (updateError) {
-        throw updateError;
+      if (!result.success) {
+        throw new Error(
+          result.error ?? "Failed to reject request.",
+        );
       }
 
       await loadRequests();
@@ -365,13 +309,13 @@ export function WorkerServiceRequests() {
     } catch (updateError) {
       console.error(
         "Failed to reject service request:",
-        updateError
+        updateError,
       );
 
       setError(
         updateError instanceof Error
           ? updateError.message
-          : "Failed to reject request."
+          : "Failed to reject request.",
       );
     } finally {
       setUpdatingId(null);
@@ -382,47 +326,40 @@ export function WorkerServiceRequests() {
    * Start work on an accepted request.
    */
   const startRequest = async (request: ServiceRequest) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
     setUpdatingId(request.id);
+    setError(null);
 
     try {
-      const sessionResponse = await client.auth.getSession();
-      const user = sessionResponse.data.session?.user ?? null;
+      const result = await startServiceRequest(request.id);
 
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } = await client
-        .from("service_requests")
-        .update({
-          status: "in_progress",
-        })
-        .eq("id", request.id)
-        .eq("assigned_worker_id", user.id);
-
-      if (updateError) {
-        throw updateError;
+      if (!result.success) {
+        throw new Error(
+          result.error ?? "Failed to start work.",
+        );
       }
 
       await loadRequests();
+
+      setSelectedRequest((current) => {
+        if (!current || current.id !== request.id) {
+          return current;
+        }
+
+        return {
+          ...current,
+          status: "in_progress",
+        };
+      });
     } catch (updateError) {
       console.error(
         "Failed to start service request:",
-        updateError
+        updateError,
       );
 
       setError(
         updateError instanceof Error
           ? updateError.message
-          : "Failed to start work."
+          : "Failed to start work.",
       );
     } finally {
       setUpdatingId(null);
@@ -432,35 +369,21 @@ export function WorkerServiceRequests() {
   /*
    * Complete an active request.
    */
-  const completeRequest = async (request: ServiceRequest) => {
-    const client = getSupabaseClient();
-
-    if (!client) {
-      setError("Supabase is not configured.");
-      return;
-    }
-
+  const completeRequest = async (
+    request: ServiceRequest,
+  ) => {
     setUpdatingId(request.id);
+    setError(null);
 
     try {
-      const sessionResponse = await client.auth.getSession();
-      const user = sessionResponse.data.session?.user ?? null;
+      const result = await completeServiceRequest(
+        request.id,
+      );
 
-      if (!user) {
-        setError("Please log in as a worker first.");
-        return;
-      }
-
-      const { error: updateError } = await client
-        .from("service_requests")
-        .update({
-          status: "completed",
-        })
-        .eq("id", request.id)
-        .eq("assigned_worker_id", user.id);
-
-      if (updateError) {
-        throw updateError;
+      if (!result.success) {
+        throw new Error(
+          result.error ?? "Failed to complete request.",
+        );
       }
 
       await loadRequests();
@@ -468,13 +391,13 @@ export function WorkerServiceRequests() {
     } catch (updateError) {
       console.error(
         "Failed to complete service request:",
-        updateError
+        updateError,
       );
 
       setError(
         updateError instanceof Error
           ? updateError.message
-          : "Failed to complete request."
+          : "Failed to complete request.",
       );
     } finally {
       setUpdatingId(null);
@@ -485,18 +408,18 @@ export function WorkerServiceRequests() {
     const pending = requests.filter(
       (request) =>
         request.status === "pending" ||
-        request.status === "matching"
+        request.status === "matching",
     ).length;
 
     const active = requests.filter(
       (request) =>
         request.status === "assigned" ||
         request.status === "accepted" ||
-        request.status === "in_progress"
+        request.status === "in_progress",
     ).length;
 
     const completed = requests.filter(
-      (request) => request.status === "completed"
+      (request) => request.status === "completed",
     ).length;
 
     return {
@@ -556,22 +479,21 @@ export function WorkerServiceRequests() {
 
             <div>
               <p className="font-medium text-red-200">
-                Unable to load service requests
+                Unable to process service request
               </p>
 
               <p className="mt-1 text-sm text-red-200/70">
                 {error}
               </p>
 
-              {!error.toLowerCase().includes("supabase") &&
-                error.toLowerCase().includes("log in") && (
-                  <a
-                    href="/login"
-                    className="mt-3 inline-flex rounded-lg bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-500/30"
-                  >
-                    Go to Login
-                  </a>
-                )}
+              {error.toLowerCase().includes("log in") && (
+                <a
+                  href="/login"
+                  className="mt-3 inline-flex rounded-lg bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-500/30"
+                >
+                  Go to Login
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -718,10 +640,8 @@ export function WorkerServiceRequests() {
                 key={request.id}
                 className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/10 backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-400/20 hover:bg-white/[0.06]"
               >
-                {/* Decorative glow */}
                 <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl transition group-hover:bg-violet-500/20" />
 
-                {/* Top */}
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] text-2xl">
@@ -746,7 +666,6 @@ export function WorkerServiceRequests() {
                   </span>
                 </div>
 
-                {/* Details */}
                 <div className="relative mt-5 grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/5 bg-black/10 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-white/35">
@@ -770,7 +689,6 @@ export function WorkerServiceRequests() {
                   </div>
                 </div>
 
-                {/* Description */}
                 <div className="relative mt-3 rounded-xl border border-white/5 bg-black/10 p-3">
                   <p className="text-[10px] uppercase tracking-wider text-white/35">
                     Customer Notes
@@ -782,12 +700,10 @@ export function WorkerServiceRequests() {
                   </p>
                 </div>
 
-                {/* Created */}
                 <p className="relative mt-3 text-[11px] text-white/30">
                   Requested {formatDateTime(request.created_at)}
                 </p>
 
-                {/* Actions */}
                 <div className="relative mt-5 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -908,13 +824,13 @@ export function WorkerServiceRequests() {
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
                       getStatusConfig(
-                        selectedRequest.status
+                        selectedRequest.status,
                       ).className
                     }`}
                   >
                     {
                       getStatusConfig(
-                        selectedRequest.status
+                        selectedRequest.status,
                       ).label
                     }
                   </span>
@@ -928,8 +844,8 @@ export function WorkerServiceRequests() {
                   </p>
 
                   <p className="mt-1 text-sm font-medium text-white">
-                    {selectedRequest.service_areas?.[0]?.pincode ||
-                      "Not specified"}
+                    {selectedRequest.service_areas?.[0]
+                      ?.pincode || "Not specified"}
                   </p>
                 </div>
 
@@ -940,7 +856,7 @@ export function WorkerServiceRequests() {
 
                   <p className="mt-1 text-sm font-medium text-white">
                     {formatDate(
-                      selectedRequest.preferred_date
+                      selectedRequest.preferred_date,
                     )}
                   </p>
                 </div>
@@ -986,13 +902,12 @@ export function WorkerServiceRequests() {
 
                 <p className="mt-1 text-sm text-white/70">
                   {formatDateTime(
-                    selectedRequest.created_at
+                    selectedRequest.created_at,
                   )}
                 </p>
               </div>
             </div>
 
-            {/* Modal actions */}
             <div className="mt-6 flex flex-wrap gap-2">
               {(selectedRequest.status === "pending" ||
                 selectedRequest.status === "matching") &&
@@ -1004,7 +919,9 @@ export function WorkerServiceRequests() {
                         updatingId === selectedRequest.id
                       }
                       onClick={() =>
-                        void acceptRequest(selectedRequest)
+                        void acceptRequest(
+                          selectedRequest,
+                        )
                       }
                       className="flex-1 rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
                     >
@@ -1019,7 +936,9 @@ export function WorkerServiceRequests() {
                         updatingId === selectedRequest.id
                       }
                       onClick={() =>
-                        void rejectRequest(selectedRequest)
+                        void rejectRequest(
+                          selectedRequest,
+                        )
                       }
                       className="rounded-xl border border-red-400/15 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50"
                     >
@@ -1037,7 +956,9 @@ export function WorkerServiceRequests() {
                       updatingId === selectedRequest.id
                     }
                     onClick={() =>
-                      void startRequest(selectedRequest)
+                      void startRequest(
+                        selectedRequest,
+                      )
                     }
                     className="flex-1 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-50"
                   >
@@ -1055,7 +976,9 @@ export function WorkerServiceRequests() {
                       updatingId === selectedRequest.id
                     }
                     onClick={() =>
-                      void completeRequest(selectedRequest)
+                      void completeRequest(
+                        selectedRequest,
+                      )
                     }
                     className="flex-1 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-50"
                   >

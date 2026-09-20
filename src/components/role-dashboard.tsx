@@ -238,7 +238,14 @@ export function RoleDashboard({
       {/* METRICS */}
       <div className="seva-metric-grid">
         {dashboardMetrics.map((metric, index) => {
-          let value = metric.value;
+          /*
+           * FIX:
+           * metric.value is a string, while availableTools and
+           * activeReservations are numbers.
+           *
+           * Allow both types so TypeScript accepts all three values.
+           */
+          let value: string | number = metric.value;
 
           if (index === 0) {
             value = availableTools;

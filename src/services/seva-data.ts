@@ -1,4 +1,3 @@
-
 import { demoReservations, demoTools } from "@/config/workflow";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase/client";
 import type { Reservation, Tool } from "@/types/seva";
@@ -13,17 +12,6 @@ type ToolRow = {
   tool_categories?: { name: string } | { name: string }[] | null;
 };
 
-type ReservationRow = {
-  id: string;
-  start_date: string;
-  end_date: string;
-  status: Reservation["status"];
-  qr_code: string | null;
-  tools?: { name: string } | { name: string }[] | null;
-  customer?: { full_name: string } | { full_name: string }[] | null;
-  worker?: { full_name: string } | { full_name: string }[] | null;
-};
-
 export type ServiceRequestStatus =
   | "pending"
   | "matching"
@@ -32,6 +20,8 @@ export type ServiceRequestStatus =
   | "in_progress"
   | "completed"
   | "cancelled";
+
+export type ServiceRequestPriority = "HIGH" | "MEDIUM" | "LOW";
 
 export type ServiceRequest = {
   id: string;
@@ -44,6 +34,17 @@ export type ServiceRequest = {
   preferredDate: string | null;
   preferredTime: string | null;
   status: ServiceRequestStatus;
+
+  priority: ServiceRequestPriority | null;
+  aiCategory: string | null;
+  aiReason: string | null;
+  aiConfidence: number | null;
+  aiProcessedAt: string | null;
+
+  matchScore: number | null;
+  matchReason: string | null;
+  matchedAt: string | null;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -53,8 +54,8 @@ export type CreateServiceRequestInput = {
   serviceAreaId: string;
   title: string;
   description?: string;
-  preferredDate?: string;
-  preferredTime?: string;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
 };
 
 type ServiceRequestRow = {
@@ -68,132 +69,162 @@ type ServiceRequestRow = {
   preferred_date: string | null;
   preferred_time: string | null;
   status: ServiceRequestStatus;
+
+  priority: ServiceRequestPriority | null;
+  ai_category: string | null;
+  ai_reason: string | null;
+  ai_confidence: number | null;
+  ai_processed_at: string | null;
+
+  match_score: number | null;
+  match_reason: string | null;
+  matched_at: string | null;
+
   created_at: string;
   updated_at: string;
 };
 
 function firstRelation<T>(
-  value: T | T[] | null | undefined,
+  relation: T | T[] | null | undefined,
 ): T | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
+  if (!relation) {
+    return null;
   }
 
-  return value ?? null;
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
 }
 
 function mapServiceRequest(
-  request: ServiceRequestRow,
+  row: ServiceRequestRow,
 ): ServiceRequest {
   return {
-    id: request.id,
-    customerId: request.customer_id,
-    serviceId: request.service_id,
-    serviceAreaId: request.service_area_id,
-    assignedWorkerId: request.assigned_worker_id,
-    title: request.title,
-    description: request.description,
-    preferredDate: request.preferred_date,
-    preferredTime: request.preferred_time,
-    status: request.status,
-    createdAt: request.created_at,
-    updatedAt: request.updated_at,
+    id: row.id,
+    customerId: row.customer_id,
+    serviceId: row.service_id,
+    serviceAreaId: row.service_area_id,
+    assignedWorkerId: row.assigned_worker_id,
+    title: row.title,
+    description: row.description,
+    preferredDate: row.preferred_date,
+    preferredTime: row.preferred_time,
+    status: row.status,
+
+    priority: row.priority,
+    aiCategory: row.ai_category,
+    aiReason: row.ai_reason,
+    aiConfidence: row.ai_confidence,
+    aiProcessedAt: row.ai_processed_at,
+
+    matchScore: row.match_score,
+    matchReason: row.match_reason,
+    matchedAt: row.matched_at,
+
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    TOOLS
---------------------------------------------------------- */
+   ========================================================= */
 
 export async function getTools(): Promise<Tool[]> {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return demoTools;
   }
 
-  const { data, error } = await supabase
-    .from("tools")
-    .select(
-      "id,name,description,location,status,demand_score,tool_categories(name)",
-    )
-    .order("created_at", { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from("tools")
+      .select(
+        `
+          id,
+          name,
+          description,
+          location,
+          status,
+          demand_score,
+          tool_categories(name)
+        `,
+      )
+      .order("name", { ascending: true });
 
-  if (error || !data) {
-    return demoTools;
-  }
+    if (error) {
+      console.warn(
+        "Failed to load tools from Supabase:",
+        error.message,
+      );
 
-  return (data as unknown as ToolRow[]).map((tool, index) => {
-    const category = firstRelation(tool.tool_categories);
+      return demoTools;
+    }
 
-    return {
-      id: tool.id,
-      name: tool.name,
-      category: category?.name ?? "General",
-      description:
-        tool.description ??
-        "Community tool ready for reservation.",
-      location: tool.location ?? "Main hub",
-      status: tool.status,
-      demandScore: tool.demand_score ?? 50,
-      imageStyle:
-        demoTools[index % demoTools.length].imageStyle,
-    };
-  });
-}
-
-/* ---------------------------------------------------------
-   RESERVATIONS
---------------------------------------------------------- */
-
-export async function getReservations(): Promise<Reservation[]> {
-  if (!hasSupabaseConfig || !supabase) {
-    return demoReservations;
-  }
-
-  const { data, error } = await supabase
-    .from("reservations")
-    .select(
-      "id,start_date,end_date,status,qr_code,tools(name),customer:customer_id(full_name),worker:worker_id(full_name)",
-    )
-    .order("created_at", { ascending: false });
-
-  if (error || !data) {
-    return demoReservations;
-  }
-
-  return (data as unknown as ReservationRow[]).map(
-    (reservation) => {
-      const tool = firstRelation(reservation.tools);
-      const customer = firstRelation(reservation.customer);
-      const worker = firstRelation(reservation.worker);
+    return ((data ?? []) as ToolRow[]).map((row) => {
+      const category = firstRelation(row.tool_categories);
 
       return {
-        id: reservation.id,
-        toolName: tool?.name ?? "Reserved tool",
-        customerName:
-          customer?.full_name ?? "Customer",
-        workerName:
-          worker?.full_name ?? "Pending assignment",
-        startDate: reservation.start_date,
-        endDate: reservation.end_date,
-        status: reservation.status,
-        qrCode:
-          reservation.qr_code ??
-          `SEVA-${reservation.id.slice(0, 8)}`,
-      };
-    },
-  );
+        id: row.id,
+        name: row.name,
+        description: row.description ?? "",
+        location: row.location ?? "",
+        status: row.status,
+        demandScore: row.demand_score ?? 0,
+        category: category?.name ?? "General",
+      } as Tool;
+    });
+  } catch (error) {
+    console.warn(
+      "Failed to load tools:",
+      error,
+    );
+
+    return demoTools;
+  }
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
+   TOOL RESERVATIONS
+   ---------------------------------------------------------
+   The Supabase project currently does not contain the
+   tool_reservations table.
+
+   Keep reservations demo-backed so this optional feature
+   does not break the main service-request workflow.
+   ========================================================= */
+
+export async function getReservations(): Promise<Reservation[]> {
+  return demoReservations;
+}
+
+/* =========================================================
    SERVICE REQUESTS
---------------------------------------------------------- */
+   ========================================================= */
 
-const SERVICE_REQUEST_SELECT =
-  "id,customer_id,service_id,service_area_id,assigned_worker_id,title,description,preferred_date,preferred_time,status,created_at,updated_at";
+const SERVICE_REQUEST_SELECT = `
+  id,
+  customer_id,
+  service_id,
+  service_area_id,
+  assigned_worker_id,
+  title,
+  description,
+  preferred_date,
+  preferred_time,
+  status,
+  priority,
+  ai_category,
+  ai_reason,
+  ai_confidence,
+  ai_processed_at,
+  match_score,
+  match_reason,
+  matched_at,
+  created_at,
+  updated_at
+`;
 
-/* ---------------------------------------------------------
+/* =========================================================
    CREATE SERVICE REQUEST
---------------------------------------------------------- */
+   ========================================================= */
 
 export async function createServiceRequest(
   input: CreateServiceRequestInput,
@@ -202,220 +233,344 @@ export async function createServiceRequest(
   request?: ServiceRequest;
   error?: string;
 }> {
-  if (!hasSupabaseConfig || !supabase) {
-    return {
-      success: false,
-      error: "Supabase is not configured.",
-    };
-  }
+  try {
+    if (!supabase || !hasSupabaseConfig) {
+      return {
+        success: false,
+        error: "Supabase is not configured.",
+      };
+    }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+    console.log("=== SEVA-COOP CREATE REQUEST START ===");
+    console.log("Input:", input);
 
-  if (authError) {
-    return {
-      success: false,
-      error: authError.message,
-    };
-  }
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-  if (!user) {
-    return {
-      success: false,
-      error:
-        "Please sign in before requesting a service.",
-    };
-  }
+    console.log("Session:", {
+      exists: Boolean(session),
+      userId: session?.user?.id ?? null,
+    });
 
-  if (!input.serviceId || !input.serviceAreaId) {
-    return {
-      success: false,
-      error:
-        "Please select a service and service area.",
-    };
-  }
+    if (sessionError) {
+      console.error("SESSION ERROR:", sessionError);
 
-  if (!input.title.trim()) {
-    return {
-      success: false,
-      error:
-        "Please enter a service request title.",
-    };
-  }
+      return {
+        success: false,
+        error: `Session error: ${sessionError.message}`,
+      };
+    }
 
-  const { data, error } = await supabase
-    .from("service_requests")
-    .insert({
-      customer_id: user.id,
+    if (!session?.user) {
+      return {
+        success: false,
+        error:
+          "No authenticated user found. Please log in again.",
+      };
+    }
+
+    const userId = session.user.id;
+
+    if (!input.serviceId) {
+      return {
+        success: false,
+        error: "Service ID is missing.",
+      };
+    }
+
+    if (!input.serviceAreaId) {
+      return {
+        success: false,
+        error: "Service area ID is missing.",
+      };
+    }
+
+    if (!input.title?.trim()) {
+      return {
+        success: false,
+        error: "Service request title is missing.",
+      };
+    }
+
+    const requestId = crypto.randomUUID();
+
+    const insertData = {
+      id: requestId,
+      customer_id: userId,
       service_id: input.serviceId,
       service_area_id: input.serviceAreaId,
+      assigned_worker_id: null,
       title: input.title.trim(),
-      description:
-        input.description?.trim() || null,
-      preferred_date:
-        input.preferredDate || null,
-      preferred_time:
-        input.preferredTime || null,
+      description: input.description?.trim() || null,
+      preferred_date: input.preferredDate || null,
+      preferred_time: input.preferredTime || null,
       status: "pending",
-    })
-    .select(SERVICE_REQUEST_SELECT)
-    .single();
+    };
 
-  if (error) {
+    console.log("INSERT DATA:", insertData);
+
+    const { data, error } = await supabase
+      .from("service_requests")
+      .insert(insertData)
+      .select(SERVICE_REQUEST_SELECT)
+      .single();
+
+    if (error) {
+      console.error(
+        "========== SUPABASE INSERT ERROR ==========",
+      );
+      console.error("message:", error.message);
+      console.error("code:", error.code);
+      console.error("details:", error.details);
+      console.error("hint:", error.hint);
+      console.error("full error:", error);
+      console.error(
+        "============================================",
+      );
+
+      return {
+        success: false,
+        error: [
+          error.message,
+          error.code ? `Code: ${error.code}` : "",
+          error.details ? `Details: ${error.details}` : "",
+          error.hint ? `Hint: ${error.hint}` : "",
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      };
+    }
+
+    console.log(
+      "SUPABASE INSERT SUCCESS:",
+      data,
+    );
+
+    if (!data) {
+      return {
+        success: false,
+        error:
+          "Request was inserted but Supabase returned no request data.",
+      };
+    }
+
+    return {
+      success: true,
+      request: mapServiceRequest(
+        data as ServiceRequestRow,
+      ),
+    };
+  } catch (error) {
     console.error(
-      "Error creating service request:",
-      error,
+      "========== CREATE REQUEST EXCEPTION ==========",
+    );
+    console.error(error);
+    console.error(
+      "===============================================",
     );
 
     return {
       success: false,
-      error: error.message,
+      error:
+        error instanceof Error
+          ? error.message
+          : JSON.stringify(error),
     };
   }
-
-  return {
-    success: true,
-    request: mapServiceRequest(
-      data as ServiceRequestRow,
-    ),
-  };
 }
 
-/* ---------------------------------------------------------
-   GET CURRENT CUSTOMER'S SERVICE REQUESTS
---------------------------------------------------------- */
+/* =========================================================
+   CUSTOMER REQUEST HISTORY
+   ========================================================= */
 
 export async function getMyServiceRequests(): Promise<
   ServiceRequest[]
 > {
-  if (!hasSupabaseConfig || !supabase) {
-    return [];
-  }
+  try {
+    if (!supabase || !hasSupabaseConfig) {
+      console.error(
+        "Supabase is not configured.",
+      );
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+      return [];
+    }
 
-  if (authError || !user) {
-    return [];
-  }
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-  const { data, error } = await supabase
-    .from("service_requests")
-    .select(SERVICE_REQUEST_SELECT)
-    .eq("customer_id", user.id)
-    .order("created_at", {
-      ascending: false,
-    });
+    if (sessionError) {
+      console.error(
+        "SESSION ERROR:",
+        sessionError.message,
+      );
 
-  if (error || !data) {
+      return [];
+    }
+
+    if (!session?.user) {
+      console.error(
+        "No authenticated user found.",
+      );
+
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("service_requests")
+      .select(SERVICE_REQUEST_SELECT)
+      .eq("customer_id", session.user.id)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (error) {
+      console.error(
+        "GET SERVICE REQUESTS ERROR:",
+        error.message,
+        error.code,
+        error.details,
+        error.hint,
+      );
+
+      return [];
+    }
+
+    return (data ?? []).map((row) =>
+      mapServiceRequest(
+        row as ServiceRequestRow,
+      ),
+    );
+  } catch (error) {
     console.error(
-      "Error loading service requests:",
+      "GET MY SERVICE REQUESTS EXCEPTION:",
       error,
     );
 
     return [];
   }
-
-  return (data as ServiceRequestRow[]).map(
-    mapServiceRequest,
-  );
 }
 
-/* ---------------------------------------------------------
-   GET SINGLE SERVICE REQUEST
---------------------------------------------------------- */
+/* =========================================================
+   SINGLE SERVICE REQUEST
+   ========================================================= */
 
 export async function getServiceRequest(
   requestId: string,
 ): Promise<ServiceRequest | null> {
-  if (
-    !hasSupabaseConfig ||
-    !supabase ||
-    !requestId
-  ) {
+  if (!supabase || !hasSupabaseConfig) {
     return null;
   }
 
-  const { data, error } = await supabase
-    .from("service_requests")
-    .select(SERVICE_REQUEST_SELECT)
-    .eq("id", requestId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("service_requests")
+      .select(SERVICE_REQUEST_SELECT)
+      .eq("id", requestId)
+      .maybeSingle();
 
-  if (error || !data) {
     if (error) {
       console.error(
-        "Error loading service request:",
-        error,
+        "GET SERVICE REQUEST ERROR:",
+        error.message,
       );
+
+      return null;
     }
+
+    return data
+      ? mapServiceRequest(
+          data as ServiceRequestRow,
+        )
+      : null;
+  } catch (error) {
+    console.error(
+      "GET SERVICE REQUEST EXCEPTION:",
+      error,
+    );
 
     return null;
   }
-
-  return mapServiceRequest(
-    data as ServiceRequestRow,
-  );
 }
 
-/* ---------------------------------------------------------
-   GET WORKER SERVICE REQUESTS
---------------------------------------------------------- */
+/* =========================================================
+   WORKER REQUESTS
+   ========================================================= */
 
 export async function getWorkerServiceRequests(): Promise<
   ServiceRequest[]
 > {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return [];
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-  if (authError || !user) {
-    return [];
-  }
+    if (sessionError || !session?.user) {
+      console.error(
+        "Worker session unavailable:",
+        sessionError?.message,
+      );
 
-  const { data, error } = await supabase
-    .from("service_requests")
-    .select(SERVICE_REQUEST_SELECT)
-    .or(
-      `assigned_worker_id.is.null,assigned_worker_id.eq.${user.id}`,
-    )
-    .in("status", [
-      "pending",
-      "matching",
-      "assigned",
-      "accepted",
-      "in_progress",
-    ])
-    .order("created_at", {
-      ascending: false,
-    });
+      return [];
+    }
 
-  if (error || !data) {
+    const userId = session.user.id;
+
+    const { data, error } = await supabase
+      .from("service_requests")
+      .select(SERVICE_REQUEST_SELECT)
+      .or(
+        `assigned_worker_id.is.null,assigned_worker_id.eq.${userId}`,
+      )
+      .in("status", [
+        "pending",
+        "matching",
+        "assigned",
+        "accepted",
+        "in_progress",
+      ])
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (error) {
+      console.error(
+        "GET WORKER SERVICE REQUESTS ERROR:",
+        error.message,
+        error.code,
+        error.details,
+        error.hint,
+      );
+
+      return [];
+    }
+
+    return (data ?? []).map((row) =>
+      mapServiceRequest(
+        row as ServiceRequestRow,
+      ),
+    );
+  } catch (error) {
     console.error(
-      "Error loading worker service requests:",
+      "GET WORKER SERVICE REQUESTS EXCEPTION:",
       error,
     );
 
     return [];
   }
-
-  return (data as ServiceRequestRow[]).map(
-    mapServiceRequest,
-  );
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    ACCEPT SERVICE REQUEST
---------------------------------------------------------- */
+   ========================================================= */
 
 export async function acceptServiceRequest(
   requestId: string,
@@ -423,70 +578,115 @@ export async function acceptServiceRequest(
   success: boolean;
   error?: string;
 }> {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return {
       success: false,
       error: "Supabase is not configured.",
     };
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-  if (authError || !user) {
+    if (sessionError || !session?.user) {
+      return {
+        success: false,
+        error:
+          sessionError?.message ||
+          "Worker session is unavailable.",
+      };
+    }
+
+    const userId = session.user.id;
+
+    /*
+     * First accept a request that was already assigned
+     * to this worker.
+     */
+    const {
+      data: assigned,
+      error: assignedError,
+    } = await supabase
+      .from("service_requests")
+      .update({
+        status: "accepted",
+      })
+      .eq("id", requestId)
+      .eq("assigned_worker_id", userId)
+      .eq("status", "assigned")
+      .select("id")
+      .maybeSingle();
+
+    if (assignedError) {
+      return {
+        success: false,
+        error: assignedError.message,
+      };
+    }
+
+    if (assigned) {
+      return {
+        success: true,
+      };
+    }
+
+    /*
+     * Otherwise allow the worker to claim an
+     * unassigned pending/matching request.
+     */
+    const {
+      data: claimed,
+      error: claimError,
+    } = await supabase
+      .from("service_requests")
+      .update({
+        assigned_worker_id: userId,
+        status: "accepted",
+      })
+      .eq("id", requestId)
+      .is("assigned_worker_id", null)
+      .in("status", [
+        "pending",
+        "matching",
+      ])
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) {
+      return {
+        success: false,
+        error: claimError.message,
+      };
+    }
+
+    if (!claimed) {
+      return {
+        success: false,
+        error:
+          "This service request is no longer available.",
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error) {
     return {
       success: false,
       error:
-        authError?.message ??
-        "Please sign in as a worker.",
+        error instanceof Error
+          ? error.message
+          : "Unable to accept service request.",
     };
   }
-
-  const { data, error } = await supabase
-    .from("service_requests")
-    .update({
-      assigned_worker_id: user.id,
-      status: "accepted",
-    })
-    .eq("id", requestId)
-    .in("status", [
-      "pending",
-      "matching",
-    ])
-    .is("assigned_worker_id", null)
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "Error accepting service request:",
-      error,
-    );
-
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-
-  if (!data) {
-    return {
-      success: false,
-      error:
-        "This request is no longer available.",
-    };
-  }
-
-  return {
-    success: true,
-  };
 }
 
-/* ---------------------------------------------------------
-   REJECT / RELEASE SERVICE REQUEST
---------------------------------------------------------- */
+/* =========================================================
+   REJECT SERVICE REQUEST
+   ========================================================= */
 
 export async function rejectServiceRequest(
   requestId: string,
@@ -494,70 +694,62 @@ export async function rejectServiceRequest(
   success: boolean;
   error?: string;
 }> {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return {
       success: false,
       error: "Supabase is not configured.",
     };
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (authError || !user) {
+    if (!session?.user) {
+      return {
+        success: false,
+        error:
+          "Worker session is unavailable.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("service_requests")
+      .update({
+        assigned_worker_id: null,
+        status: "matching",
+      })
+      .eq("id", requestId)
+      .eq(
+        "assigned_worker_id",
+        session.user.id,
+      );
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error) {
     return {
       success: false,
       error:
-        authError?.message ??
-        "Please sign in as a worker.",
+        error instanceof Error
+          ? error.message
+          : "Unable to reject service request.",
     };
   }
-
-  const { data, error } = await supabase
-    .from("service_requests")
-    .update({
-      assigned_worker_id: null,
-      status: "matching",
-    })
-    .eq("id", requestId)
-    .eq("assigned_worker_id", user.id)
-    .in("status", [
-      "assigned",
-      "accepted",
-    ])
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "Error rejecting service request:",
-      error,
-    );
-
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-
-  if (!data) {
-    return {
-      success: false,
-      error:
-        "This request is no longer assigned to you.",
-    };
-  }
-
-  return {
-    success: true,
-  };
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    START SERVICE REQUEST
---------------------------------------------------------- */
+   ========================================================= */
 
 export async function startServiceRequest(
   requestId: string,
@@ -565,69 +757,65 @@ export async function startServiceRequest(
   success: boolean;
   error?: string;
 }> {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return {
       success: false,
       error: "Supabase is not configured.",
     };
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (authError || !user) {
+    if (!session?.user) {
+      return {
+        success: false,
+        error:
+          "Worker session is unavailable.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("service_requests")
+      .update({
+        status: "in_progress",
+      })
+      .eq("id", requestId)
+      .eq(
+        "assigned_worker_id",
+        session.user.id,
+      )
+      .in("status", [
+        "assigned",
+        "accepted",
+      ]);
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error) {
     return {
       success: false,
       error:
-        authError?.message ??
-        "Please sign in as a worker.",
+        error instanceof Error
+          ? error.message
+          : "Unable to start service request.",
     };
   }
-
-  const { data, error } = await supabase
-    .from("service_requests")
-    .update({
-      status: "in_progress",
-    })
-    .eq("id", requestId)
-    .eq("assigned_worker_id", user.id)
-    .in("status", [
-      "accepted",
-      "assigned",
-    ])
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "Error starting service request:",
-      error,
-    );
-
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-
-  if (!data) {
-    return {
-      success: false,
-      error:
-        "This request cannot be started.",
-    };
-  }
-
-  return {
-    success: true,
-  };
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    COMPLETE SERVICE REQUEST
---------------------------------------------------------- */
+   ========================================================= */
 
 export async function completeServiceRequest(
   requestId: string,
@@ -635,59 +823,55 @@ export async function completeServiceRequest(
   success: boolean;
   error?: string;
 }> {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!supabase || !hasSupabaseConfig) {
     return {
       success: false,
       error: "Supabase is not configured.",
     };
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (authError || !user) {
+    if (!session?.user) {
+      return {
+        success: false,
+        error:
+          "Worker session is unavailable.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("service_requests")
+      .update({
+        status: "completed",
+      })
+      .eq("id", requestId)
+      .eq(
+        "assigned_worker_id",
+        session.user.id,
+      )
+      .eq("status", "in_progress");
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error) {
     return {
       success: false,
       error:
-        authError?.message ??
-        "Please sign in as a worker.",
+        error instanceof Error
+          ? error.message
+          : "Unable to complete service request.",
     };
   }
-
-  const { data, error } = await supabase
-    .from("service_requests")
-    .update({
-      status: "completed",
-    })
-    .eq("id", requestId)
-    .eq("assigned_worker_id", user.id)
-    .eq("status", "in_progress")
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "Error completing service request:",
-      error,
-    );
-
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-
-  if (!data) {
-    return {
-      success: false,
-      error:
-        "This request cannot be completed.",
-    };
-  }
-
-  return {
-    success: true,
-  };
 }

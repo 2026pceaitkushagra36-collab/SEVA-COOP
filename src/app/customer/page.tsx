@@ -27,6 +27,15 @@ type ServiceArea = {
   pincode: string;
 };
 
+type AIResult = {
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  category: string;
+  reason: string;
+  confidence: number;
+  matchScore?: number;
+  matchReason?: string;
+};
+
 const statusConfig: Record<
   ServiceRequest["status"],
   {
@@ -137,6 +146,9 @@ function CustomerServiceRequests() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const [aiResult, setAiResult] = useState<AIResult | null>(null);
+
   const [selectedRequest, setSelectedRequest] =
     useState<ServiceRequest | null>(null);
 
@@ -150,8 +162,6 @@ function CustomerServiceRequests() {
     setError("");
 
     try {
-      // Load services and service areas independently from
-      // authenticated service requests.
       const [servicesResult, areasResult] = await Promise.all([
         supabase
           .from("services")
@@ -177,16 +187,13 @@ function CustomerServiceRequests() {
       setServices((servicesResult.data ?? []) as Service[]);
       setServiceAreas((areasResult.data ?? []) as ServiceArea[]);
 
-      // Existing customer requests are loaded separately.
-      // If authentication is not ready, this must not prevent
-      // the service form from appearing.
       try {
         const requestsData = await getMyServiceRequests();
         setRequests(requestsData);
       } catch (requestError) {
         console.error(
           "Failed to load existing service requests:",
-          requestError
+          requestError,
         );
 
         setRequests([]);
@@ -197,7 +204,7 @@ function CustomerServiceRequests() {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to load service and service area data."
+          : "Unable to load service and service area data.",
       );
     } finally {
       setLoading(false);
@@ -220,14 +227,14 @@ function CustomerServiceRequests() {
     () =>
       requests.filter(
         (request) =>
-          request.status !== "completed" && request.status !== "cancelled"
+          request.status !== "completed" && request.status !== "cancelled",
       ),
-    [requests]
+    [requests],
   );
 
   const completedRequests = useMemo(
     () => requests.filter((request) => request.status === "completed"),
-    [requests]
+    [requests],
   );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -235,6 +242,7 @@ function CustomerServiceRequests() {
 
     setError("");
     setSuccess("");
+    setAiResult(null);
 
     if (!selectedService) {
       setError("Please select a service.");
@@ -246,24 +254,79 @@ function CustomerServiceRequests() {
       return;
     }
 
+    if (!description.trim()) {
+      setError("Please describe what you need so our AI can analyze the request.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const selectedServiceData = services.find(
-        (service) => service.id === selectedService
+        (service) => service.id === selectedService,
       );
 
       if (!selectedServiceData) {
         throw new Error("Selected service could not be found.");
       }
 
-      await createServiceRequest({
+      // Step 1: Create the service request in the existing Supabase table.
+      const createResult = await createServiceRequest({
         serviceId: selectedService,
         serviceAreaId: selectedArea,
         title: selectedServiceData.name,
         description,
         preferredDate: preferredDate || undefined,
         preferredTime: preferredTime || undefined,
+      });
+
+      if (!createResult.success || !createResult.request) {
+        throw new Error("Unable to create service request.");
+      }
+
+      const requestId = createResult.request.id;
+
+      // Step 2: Get the authenticated user's Supabase session.
+      if (!supabase) {
+        throw new Error("Supabase is not configured.");
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      // Step 3: Send the request to the real AI analysis endpoint.
+      const aiResponse = await fetch("/api/ai/analyze-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          requestId,
+        }),
+      });
+
+      const aiData = await aiResponse.json();
+
+      if (!aiResponse.ok || !aiData.success) {
+        throw new Error(
+          aiData.error || "AI analysis failed for this request.",
+        );
+      }
+
+      // Step 4: Display AI classification and worker matching.
+      setAiResult({
+        priority: aiData.analysis.priority,
+        category: aiData.analysis.category,
+        reason: aiData.analysis.reason,
+        confidence: aiData.analysis.confidence,
+        matchScore: aiData.matching?.match_score,
+        matchReason: aiData.matching?.match_reason,
       });
 
       setSelectedService("");
@@ -273,17 +336,17 @@ function CustomerServiceRequests() {
       setDescription("");
 
       setSuccess(
-        "Service request submitted successfully. We will look for an available worker."
+        "Request submitted. AI has analyzed the request and our matching engine has selected the most suitable available worker.",
       );
 
       await loadData();
     } catch (err) {
-      console.error("Failed to create service request:", err);
+      console.error("Failed to create/analyze service request:", err);
 
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to submit service request."
+          : "Unable to submit service request.",
       );
     } finally {
       setSubmitting(false);
@@ -303,8 +366,8 @@ function CustomerServiceRequests() {
           </h2>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
-            Tell us what you need and where you need it. Your request will be
-            shared with available workers in your area.
+            Tell us what you need and where you need it. Our AI analyzes the
+            request before the matching engine selects an available worker.
           </p>
         </div>
 
@@ -338,7 +401,8 @@ function CustomerServiceRequests() {
             </h3>
 
             <p className="mt-1 text-sm text-white/45">
-              Fill in the details below to request help from a local worker.
+              Fill in the details below. AI will determine urgency and category
+              before the worker matching engine runs.
             </p>
           </div>
 
@@ -351,6 +415,90 @@ function CustomerServiceRequests() {
           {success && (
             <div className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
               {success}
+            </div>
+          )}
+
+          {aiResult && (
+            <div className="mb-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.06] p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-lg">🤖</span>
+
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300/70">
+                    AI Service Analysis
+                  </div>
+
+                  <div className="text-sm text-white/50">
+                    Real-time priority classification
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/35">Priority</div>
+
+                  <div
+                    className={`mt-1 text-xl font-bold ${
+                      aiResult.priority === "HIGH"
+                        ? "text-red-300"
+                        : aiResult.priority === "MEDIUM"
+                          ? "text-amber-300"
+                          : "text-emerald-300"
+                    }`}
+                  >
+                    {aiResult.priority}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/35">AI Category</div>
+
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {aiResult.category}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/35">Confidence</div>
+
+                  <div className="mt-1 text-xl font-bold text-cyan-300">
+                    {Math.round(aiResult.confidence)}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-xs text-white/35">AI Reason</div>
+
+                <p className="mt-1 text-sm leading-6 text-white/70">
+                  {aiResult.reason}
+                </p>
+              </div>
+
+              {aiResult.matchScore !== undefined && (
+                <div className="mt-3 rounded-xl border border-purple-400/20 bg-purple-400/[0.05] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-300/70">
+                    Explainable Worker Matching
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <span className="text-sm font-semibold text-white">
+                      Match Score: {aiResult.matchScore}
+                    </span>
+
+                    <span className="text-xs text-white/40">
+                      Skills + area + availability + workload + performance
+                    </span>
+                  </div>
+
+                  {aiResult.matchReason && (
+                    <p className="mt-2 text-sm text-white/60">
+                      {aiResult.matchReason}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -384,7 +532,7 @@ function CustomerServiceRequests() {
                   <p className="mt-2 text-xs text-white/40">
                     {
                       services.find(
-                        (service) => service.id === selectedService
+                        (service) => service.id === selectedService,
                       )?.description
                     }
                   </p>
@@ -468,7 +616,7 @@ function CustomerServiceRequests() {
                 onChange={(event) => setDescription(event.target.value)}
                 disabled={submitting}
                 rows={5}
-                placeholder="Example: The kitchen tap is leaking and needs repair."
+                placeholder="Example: There is a spark coming from the main switchboard and electricity keeps going off."
                 className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none transition focus:border-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
@@ -479,7 +627,7 @@ function CustomerServiceRequests() {
                 disabled={submitting || loading}
                 className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-6 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? "Submitting..." : "Request Service"}
+                {submitting ? "AI Analyzing..." : "Request Service"}
               </button>
             </div>
           </form>
@@ -562,7 +710,7 @@ function CustomerServiceRequests() {
                               Area:{" "}
                               {serviceAreas.find(
                                 (area) =>
-                                  area.id === request.serviceAreaId
+                                  area.id === request.serviceAreaId,
                               )?.pincode ?? request.serviceAreaId}
                             </span>
 
@@ -647,6 +795,7 @@ function CustomerServiceRequests() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                 <div className="text-xs text-white/35">Preferred Date</div>
+
                 <div className="mt-1 text-sm text-white/80">
                   {formatDate(selectedRequest.preferredDate)}
                 </div>
@@ -654,6 +803,7 @@ function CustomerServiceRequests() {
 
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                 <div className="text-xs text-white/35">Preferred Time</div>
+
                 <div className="mt-1 text-sm text-white/80">
                   {selectedRequest.preferredTime || "Not specified"}
                 </div>
@@ -661,15 +811,17 @@ function CustomerServiceRequests() {
 
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                 <div className="text-xs text-white/35">Service Area</div>
+
                 <div className="mt-1 text-sm text-white/80">
                   {serviceAreas.find(
-                    (area) => area.id === selectedRequest.serviceAreaId
+                    (area) => area.id === selectedRequest.serviceAreaId,
                   )?.pincode ?? selectedRequest.serviceAreaId}
                 </div>
               </div>
 
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                 <div className="text-xs text-white/35">Assigned Worker</div>
+
                 <div className="mt-1 text-sm text-white/80">
                   {selectedRequest.assignedWorkerId
                     ? "Worker assigned"

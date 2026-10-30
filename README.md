@@ -1,5 +1,16 @@
 # SEVA-COOP
 
+![Status](https://img.shields.io/badge/Status-Prototype-orange)
+![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)
+![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
+![Team](https://img.shields.io/badge/Team-Viksit%20Vision-blue)
+![Problem Statement](https://img.shields.io/badge/Problem%20Statement-26089-green)
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)](https://seva-coop.vercel.app)
+
 Fair work. Trusted services. Stronger communities.
 
 SEVA-COOP is a community-run platform that connects people who need everyday home services, such as plumbing, electrical work, carpentry, and cleaning, with trusted local workers.
